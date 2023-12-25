@@ -22,6 +22,10 @@ int exec(char *file_name);
 tid_t fork(const char *thread_name, struct intr_frame *f);
 int wait(tid_t pid);
 
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap(void *addr);
+
 void check_address(void *addr);
+struct page *check_address2(void *addr);
 
 #endif /* userprog/syscall.h */

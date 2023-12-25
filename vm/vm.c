@@ -80,7 +80,6 @@ spt_find_page(struct supplemental_page_table *spt UNUSED, void *va UNUSED)
 {
 	/* TODO: Find struct page that corresponds to va from the given supplemental page table.
 	If fail, return NULL.*/
-
 	struct page p;
 	struct hash_elem *e;
 
@@ -96,8 +95,6 @@ bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
 	/* TODO: Insert struct page into the given supplemental page table.
 	This function should checks that the virtual address does not exist
 	in the given supplemental page table. */
-	/* what about va itself wrong? */
-
 	if (spt_find_page(spt, page->va))
 	{
 		return false;
@@ -163,6 +160,16 @@ vm_get_frame(void)
 static void
 vm_stack_growth(void *addr UNUSED)
 {
+	// bool writable = spt_find_page(thread_current()->spt, addr);
+	// vm_alloc_page(VM_ANON, addr, writable);
+	/* stack에 해당하는 ANON 페이지를 UNINIT으로 만들고 SPT에 넣어준다.
+	이후, 바로 claim해서 물리 메모리와 맵핑해준다. */
+	if (vm_alloc_page(VM_ANON | VM_MARKER_0, pg_round_down(addr), 1))
+	{
+		vm_claim_page(addr);
+		thread_current()->stack_bottom -= PGSIZE;
+	}
+	// vm_alloc_page(VM_ANON | VM_MARKER_0, addr, true);
 }
 
 /* Handle the fault on write_protected page */
@@ -177,17 +184,24 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 {
 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
 	struct page *page = NULL;
-	if (addr == NULL)
-		return false;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
 	/* By valid, we mean the fault that accesses invalid.
 	If it is a bogus fault, you load some contents into the page and return control to the user program. */
-
-	if (is_kernel_vaddr(addr) || !is_user_vaddr(addr))
+	if (is_kernel_vaddr(addr) || !(addr))
 		return false;
 	if (not_present)
 	{
+		void *rsp = f->rsp; // user access인 경우 rsp는 유저 stack을 가리킨다.
+		if (!user)			// kernel access인 경우 thread에서 rsp를 가져와야 한다.
+			rsp = thread_current()->rsp_stack;
+
+		// 스택 확장으로 처리할 수 있는 폴트인 경우, vm_stack_growth를 호출한다.
+		if (USER_STACK - (1 << 20) <= rsp - 8 && rsp - 8 == addr && addr <= USER_STACK)
+			vm_stack_growth(addr);
+		else if (USER_STACK - (1 << 20) <= rsp && rsp <= addr && addr <= USER_STACK)
+			vm_stack_growth(addr);
+
 		page = spt_find_page(spt, addr);
 		if (page == NULL)
 		{
@@ -258,82 +272,37 @@ void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED)
 bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 								  struct supplemental_page_table *src UNUSED)
 {
-	// size_t i;
-	// for (i = 0; i < src->pages.bucket_cnt; i++)
-	// {
-	// 	struct list *bucket = &src->pages.buckets[i];
-	// 	while (!list_empty(bucket))
-	// 	{
-	// 		struct list_elem *list_elem = list_pop_front(bucket);
-	// 		struct hash_elem *hash_elem = list_elem_to_hash_elem(list_elem);
-	// 		spt_insert_page(dst, hash_entry(hash_elem, struct page, hash_elem));
-	// 	}
-	// 	list_init(bucket);
-	// }
-	// src->pages.elem_cnt = 0;
-
-	// struct hash_iterator i;
-	// hash_first(&i, &src->pages);
-	// while (hash_next(&i))
-	// {
-	// 	struct page *parent_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-	// 	enum vm_type type = page_get_type(parent_page);
-	// 	void *upage = parent_page->va;
-	// 	bool writable = parent_page->write;
-	// 	vm_initializer *init = parent_page->uninit.init;
-	// 	void *aux = parent_page->uninit.aux;
-
-	// if (parent_page->uninit.type & VM_MARKER_0)
-	// {
-	// 	setup_stack(&thread_current()->tf);
-	// }
-	// else if (parent_page->operations->type == VM_UNINIT)
-	// {
-	// 	if (!vm_alloc_page_with_initializer(type, upage, writable, init, aux))
-	// 		return false;
-	// }
-	// 	else
-	// 	{
-	// 		if (!vm_alloc_page(type, upage, writable))
-	// 			return false;
-	// 		if (!vm_claim_page(upage))
-	// 			return false;
-	// 	}
-
-	// 	if (parent_page->operations->type != VM_UNINIT)
-	// 	{
-	// 		struct page *child_page = spt_find_page(dst, upage);
-	// 		memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
-	// 	}
-	// }
-	// return true;
-
 	struct hash_iterator i;
-	struct hash *src_hash = &src->pages;
-	struct hash *dst_hash = &dst->pages;
 
-	hash_first(&i, src_hash);
+	hash_first(&i, &src->pages);
 	while (hash_next(&i))
 	{
 		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-		enum vm_type type = src_page->operations->type;
-		if (type == VM_UNINIT)
+		// enum vm_type type = src_page->operations->type;
+		enum vm_type type = page_get_type(src_page);
+
+		if (src_page->operations->type == VM_UNINIT)
 		{
 			struct uninit_page *uninit_page = &src_page->uninit;
-			struct aux_val *file_loader = (struct file_loader *)uninit_page->aux;
+			// struct aux_val *file_loader = (struct aux_val *)uninit_page->aux;
 
-			struct aux_val *new_file_loader = malloc(sizeof(struct aux_val));
-			memcpy(new_file_loader, uninit_page->aux, sizeof(struct aux_val));
-			new_file_loader->file = file_duplicate(file_loader->file);
+			// struct file_loader* new_file_loader = malloc(sizeof(struct file_loader));
+			// memcpy(new_file_loader, uninit_page->aux, sizeof(struct file_loader));
+			// new_file_loader->file = file_duplicate(file_loader->file);
 
-			vm_alloc_page_with_initializer(uninit_page->type, src_page->va, true, uninit_page->init, new_file_loader);
-			vm_claim_page(src_page->va);
+			if (!vm_alloc_page_with_initializer(uninit_page->type, src_page->va, src_page->write, uninit_page->init, uninit_page->aux))
+				return false;
+			// if (!vm_claim_page(src_page->va))
+			// 	return false;
 		}
 		else
 		{
-			vm_alloc_page(src_page->operations->type, src_page->va, true);
-			vm_claim_page(src_page->va);
-			memcpy(src_page->va, src_page->frame->kva, PGSIZE);
+			if (!vm_alloc_page(src_page->operations->type, src_page->va, src_page->write))
+				return false;
+			if (!vm_claim_page(src_page->va))
+				return false;
+			struct page *dst_page = spt_find_page(dst, src_page->va);
+			memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
 		}
 	}
 

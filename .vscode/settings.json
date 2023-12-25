@@ -9,6 +9,9 @@
         "process.h": "c",
         "hash.h": "c",
         "palloc.h": "c",
-        "vm.h": "c"
+        "vm.h": "c",
+        "vaddr.h": "c",
+        "stdbool.h": "c",
+        "syscall.h": "c"
     }
 }

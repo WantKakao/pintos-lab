@@ -55,7 +55,11 @@ void syscall_init(void)
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f UNUSED)
 {
-	// TODO: Your implementation goes here.
+// TODO: Your implementation goes here.
+#ifdef VM
+	thread_current()->rsp_stack = f->rsp;
+#endif
+
 	switch (f->R.rax)
 	{
 	case SYS_HALT:
@@ -89,9 +93,11 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		f->R.rax = filesize(f->R.rdi);
 		break;
 	case SYS_READ:
+		// check_valid_buffer(f->R.rsi, f->R.rdx, f->rsp, 1);
 		f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
 		break;
 	case SYS_WRITE:
+		// check_valid_buffer(f->R.rsi, f->R.rdx, f->rsp, 0);
 		f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 		break;
 	case SYS_SEEK:
@@ -103,13 +109,16 @@ void syscall_handler(struct intr_frame *f UNUSED)
 	case SYS_CLOSE:
 		close(f->R.rdi);
 		break;
+	case SYS_MMAP:
+		f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+		break;
+	case SYS_MUNMAP:
+		munmap(f->R.rdi);
+		break;
 	default:
 		exit(-1);
 		break;
 	}
-
-	// printf("system call!\n");
-	// thread_exit();
 }
 
 void halt(void)
@@ -264,15 +273,6 @@ bool remove(const char *file)
 	return filesys_remove(file);
 }
 
-void check_address(void *addr)
-{
-	struct thread *curr = thread_current();
-	if (is_kernel_vaddr(addr) || !(addr))
-	{
-		exit(-1);
-	}
-}
-
 int exec(char *file_name)
 {
 	check_address(file_name);
@@ -300,3 +300,72 @@ int wait(tid_t pid)
 {
 	process_wait(pid);
 }
+
+void check_address(void *addr)
+{
+	if (is_kernel_vaddr(addr) || !(addr))
+	{
+		exit(-1);
+	}
+}
+
+struct page *check_address2(void *addr)
+{
+	if (is_kernel_vaddr(addr) || !(addr))
+	{
+		exit(-1);
+	}
+	return spt_find_page(&thread_current()->spt, addr);
+}
+
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
+{
+	// Fail : map to i/o console, zero length, map at 0, addr not page-aligned
+	// if (fd == 0 || fd == 1 || length <= 0 || !(addr) || pg_ofs(addr) != 0 || offset > PGSIZE)
+	// 	return NULL;
+
+	if (offset % PGSIZE != 0)
+	{
+		return NULL;
+	}
+
+	if (pg_round_down(addr) != addr || is_kernel_vaddr(addr) || addr == NULL || (long long)length <= 0)
+		return NULL;
+
+	if (fd == 0 || fd == 1)
+		exit(-1);
+
+	// vm_overlap
+	if (spt_find_page(&thread_current()->spt, addr))
+		return NULL;
+
+	// Find file by fd
+	struct file *file = process_get_file(fd);
+
+	// Fail : NULL file, file length is zero
+	if (file == NULL || file_length(file) <= 0)
+		return NULL;
+
+	return do_mmap(addr, length, writable, file, offset);
+}
+
+void munmap(void *addr)
+{
+	do_munmap(addr);
+}
+
+// void check_valid_buffer(void *buffer, unsigned size, void *rsp, bool to_write)
+// {
+// 	/* 인자로받은buffer부터buffer + size까지의크기가한페이지의크기를넘을수도있음 */
+// 	/*check_address를이용해서주소의유저영역여부를검사함과동시에vm_entry구조체를얻음*/
+// 	/* 해당주소에대한vm_entry존재여부와vm_entry의writable멤버가true인지검사*/
+// 	/* 위내용을buffer부터buffer + size까지의주소에포함되는vm_entry들에대해적용*/
+// 	for (int i = 0; i < size; i++)
+// 	{
+// 		struct page *page = check_address2(buffer + i);
+// 		if (page == NULL)
+// 			exit(-1);
+// 		if (to_write == true && page->write == false)
+// 			exit(-1);
+// 	}
+// }
