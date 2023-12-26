@@ -3,6 +3,7 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "threads/vaddr.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -14,8 +15,6 @@ vm_init (void) {
 	pagecache_init ();
 #endif
 	register_inspect_intr ();
-	/* DO NOT MODIFY UPPER LINES. */
-	/* TODO: Your code goes here. */
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -50,9 +49,6 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
-		/* TODO: Create the page, fetch the initialier according to the VM type,
-		 * TODO: and then create "uninit" page struct by calling uninit_new. You
-		 * TODO: should modify the field after calling the uninit_new. */
 		struct page *page = (struct page *)malloc(sizeof(struct page));
 
 		switch (VM_TYPE(type))
@@ -65,7 +61,6 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 			break;
 		}
 		page->write = writable;
-		/* TODO: Insert the page into the spt. */
 		return spt_insert_page(spt, page);
 	}
 err:
@@ -75,8 +70,6 @@ err:
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
-	/* TODO: Fill this function. */
 
 	struct page p;
 	struct hash_elem *e;
@@ -90,8 +83,6 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 bool
 spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
-	int succ = false;
-	/* TODO: Fill this function. */
 
 	if (spt_find_page(spt, page->va))
 	{
@@ -178,12 +169,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
 	struct page *page = NULL;
-	if (addr == NULL)
-		return false;
-	/* TODO: Validate the fault */
-	/* TODO: Your code goes here */
-
-	if (is_kernel_vaddr(addr) || !is_user_vaddr(addr))
+	if (is_kernel_vaddr(addr) || !(addr))
 		return false;
 	if (not_present)
 	{

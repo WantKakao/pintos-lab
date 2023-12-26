@@ -122,8 +122,12 @@ struct aux_val
 {
 	struct file *file;
 	size_t read_bytes;
-	size_t zero_bytes;
+	// size_t zero_bytes;
 	off_t offset;
+};
+
+struct swap_table
+{
 };
 
 #endif /* VM_VM_H */

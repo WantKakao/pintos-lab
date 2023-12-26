@@ -269,8 +269,6 @@ int process_exec(void *f_name)
 	_if.R.rdi = argc;
 	_if.R.rsi = (uint64_t)*rspp + sizeof(void *);
 
-	// hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)*rspp, true);
-
 	palloc_free_page(file_name);
 
 	/* Start switched process. */
@@ -532,7 +530,6 @@ load(const char *file_name, struct intr_frame *if_)
 			break;
 		}
 	}
-
 	/* Set up stack. */
 	if (!setup_stack(if_))
 		goto done;
@@ -549,7 +546,6 @@ load(const char *file_name, struct intr_frame *if_)
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	// file_close(file);
 	return success;
 }
 
@@ -776,7 +772,7 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		lazy_load_arg->file = file;
 		lazy_load_arg->offset = ofs;
 		lazy_load_arg->read_bytes = page_read_bytes;
-		lazy_load_arg->zero_bytes = page_zero_bytes;
+		// lazy_load_arg->zero_bytes = page_zero_bytes;
 
 		if (!vm_alloc_page_with_initializer(VM_ANON, upage,
 											writable, lazy_load_segment, lazy_load_arg))
