@@ -105,43 +105,50 @@ spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 /* Get the struct frame, that will be evicted. */
 static struct frame *
 vm_get_victim (void) {
-	struct frame *victim = NULL;
-	 /* TODO: The policy for eviction is up to you. */
-
-	return victim;
+    struct frame *victim = NULL;
+    /* TODO: The policy for eviction is up to you. */
+    /* P3 추가 */
+    victim = list_entry(list_pop_front(&frame_table), struct frame, elem); // FIFO algorithm
+    return victim;
 }
 
-/* Evict one page and return the corresponding frame.
- * Return NULL on error.*/
 static struct frame *
 vm_evict_frame (void) {
-	struct frame *victim UNUSED = vm_get_victim ();
-	/* TODO: swap out the victim and return the evicted frame. */
-
-	return NULL;
+    struct frame *victim = vm_get_victim();
+    /* TODO: swap out the victim and return the evicted frame. */
+#ifdef DBG_swap
+    printf("(vm_evict_frame) frame %p(page %p) selected and now swapping out\n", victim->kva, victim->page->va);
+#endif
+    if(victim->page != NULL){
+        swap_out(victim->page);
+    }
+    // Manipulate swap table according to its design
+    return victim;
 }
 
-/* palloc() and get frame. If there is no available page, evict the page
- * and return it. This always return valid address. That is, if the user pool
- * memory is full, this function evicts the frame to get the available memory
- * space.*/
-static struct frame *
-vm_get_frame (void) {
-    struct frame *frame = (struct frame *)malloc(sizeof(struct frame));
-	/* TODO: Fill this function. */
+/* palloc() and get frame.
+	If there is no available page, evict the page and return it.
+	This always return valid address.
+	That is, if the user pool memory is full,
+	this function evicts the frame to get the available memory space.*/
+static struct frame *vm_get_frame (void) {
+    struct frame *frame = NULL;
+    void *kva = palloc_get_page(PAL_USER);
+    /* TODO: Fill this function. */
 
-	frame->kva = palloc_get_page(PAL_USER);
-	if (frame->kva == NULL)
-	{
-		/* have to implement page replacement policy */
-		PANIC("todo");
-	}
-	frame->page = NULL;
-	ASSERT(frame != NULL);
-	ASSERT(frame->page == NULL);
-	return frame;
+    /* P3 추가 */
+    if (kva == NULL){ // NULL이면(사용 가능한 페이지가 없으면)
+        frame = vm_evict_frame(); // 페이지 삭제 후 frame 리턴
+    }
+    else{ // 사용 가능한 페이지가 있으면
+        frame = malloc(sizeof(struct frame)); // 페이지 사이즈만큼 메모리 할당
+        frame->kva = kva;
+    }
+
+    ASSERT (frame != NULL);
+    // ASSERT (frame->page == NULL);
+    return frame;
 }
-
 /* Growing the stack. */
 static void
 vm_stack_growth(void *addr UNUSED)

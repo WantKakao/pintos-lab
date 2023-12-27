@@ -66,6 +66,7 @@ struct page {
 struct frame {
 	void *kva;
 	struct page *page;
+    struct list_elem elem; /* P3 추가 */
 };
 
 /* The function table for page operations.
@@ -126,8 +127,6 @@ struct aux_val
 	off_t offset;
 };
 
-struct swap_table
-{
-};
+struct list frame_table;
 
 #endif /* VM_VM_H */
