@@ -309,21 +309,8 @@ void check_address(void *addr)
 	}
 }
 
-struct page *check_address2(void *addr)
-{
-	if (is_kernel_vaddr(addr) || !(addr))
-	{
-		exit(-1);
-	}
-	return spt_find_page(&thread_current()->spt, addr);
-}
-
 void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 {
-	// Fail : map to i/o console, zero length, map at 0, addr not page-aligned
-	// if (fd == 0 || fd == 1 || length <= 0 || !(addr) || pg_ofs(addr) != 0 || offset > PGSIZE)
-	// 	return NULL;
-
 	if (offset % PGSIZE != 0)
 	{
 		return NULL;
@@ -335,14 +322,11 @@ void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 	if (fd == 0 || fd == 1)
 		exit(-1);
 
-	// vm_overlap
 	if (spt_find_page(&thread_current()->spt, addr))
 		return NULL;
 
-	// Find file by fd
 	struct file *file = process_get_file(fd);
 
-	// Fail : NULL file, file length is zero
 	if (file == NULL || file_length(file) <= 0)
 		return NULL;
 
@@ -353,19 +337,3 @@ void munmap(void *addr)
 {
 	do_munmap(addr);
 }
-
-// void check_valid_buffer(void *buffer, unsigned size, void *rsp, bool to_write)
-// {
-// 	/* 인자로받은buffer부터buffer + size까지의크기가한페이지의크기를넘을수도있음 */
-// 	/*check_address를이용해서주소의유저영역여부를검사함과동시에vm_entry구조체를얻음*/
-// 	/* 해당주소에대한vm_entry존재여부와vm_entry의writable멤버가true인지검사*/
-// 	/* 위내용을buffer부터buffer + size까지의주소에포함되는vm_entry들에대해적용*/
-// 	for (int i = 0; i < size; i++)
-// 	{
-// 		struct page *page = check_address2(buffer + i);
-// 		if (page == NULL)
-// 			exit(-1);
-// 		if (to_write == true && page->write == false)
-// 			exit(-1);
-// 	}
-// }
