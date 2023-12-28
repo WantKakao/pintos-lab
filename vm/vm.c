@@ -274,7 +274,6 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 	while (hash_next(&i))
 	{
 		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-		// enum vm_type type = src_page->operations->type;
 		enum vm_type type = page_get_type(src_page);
 
 		if (src_page->operations->type == VM_UNINIT)
