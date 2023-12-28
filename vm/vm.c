@@ -160,8 +160,6 @@ vm_get_frame(void)
 static void
 vm_stack_growth(void *addr UNUSED)
 {
-	// bool writable = spt_find_page(thread_current()->spt, addr);
-	// vm_alloc_page(VM_ANON, addr, writable);
 	/* stack에 해당하는 ANON 페이지를 UNINIT으로 만들고 SPT에 넣어준다.
 	이후, 바로 claim해서 물리 메모리와 맵핑해준다. */
 	if (vm_alloc_page(VM_ANON | VM_MARKER_0, pg_round_down(addr), 1))
@@ -169,7 +167,6 @@ vm_stack_growth(void *addr UNUSED)
 		vm_claim_page(addr);
 		thread_current()->stack_bottom -= PGSIZE;
 	}
-	// vm_alloc_page(VM_ANON | VM_MARKER_0, addr, true);
 }
 
 /* Handle the fault on write_protected page */
@@ -192,11 +189,10 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 		return false;
 	if (not_present)
 	{
-		void *rsp = f->rsp; // user access인 경우 rsp는 유저 stack을 가리킨다.
-		if (!user)			// kernel access인 경우 thread에서 rsp를 가져와야 한다.
+		void *rsp = f->rsp; 
+		if (!user)			
 			rsp = thread_current()->rsp_stack;
 
-		// 스택 확장으로 처리할 수 있는 폴트인 경우, vm_stack_growth를 호출한다.
 		if (USER_STACK - (1 << 20) <= rsp - 8 && rsp - 8 == addr && addr <= USER_STACK)
 			vm_stack_growth(addr);
 		else if (USER_STACK - (1 << 20) <= rsp && rsp <= addr && addr <= USER_STACK)
@@ -284,16 +280,9 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 		if (src_page->operations->type == VM_UNINIT)
 		{
 			struct uninit_page *uninit_page = &src_page->uninit;
-			// struct aux_val *file_loader = (struct aux_val *)uninit_page->aux;
-
-			// struct file_loader* new_file_loader = malloc(sizeof(struct file_loader));
-			// memcpy(new_file_loader, uninit_page->aux, sizeof(struct file_loader));
-			// new_file_loader->file = file_duplicate(file_loader->file);
 
 			if (!vm_alloc_page_with_initializer(uninit_page->type, src_page->va, src_page->write, uninit_page->init, uninit_page->aux))
 				return false;
-			// if (!vm_claim_page(src_page->va))
-			// 	return false;
 		}
 		else
 		{
@@ -320,11 +309,7 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
 void hash_action_destroy(struct hash_elem *hash_elem_, void *aux)
 {
 	struct page *page = hash_entry(hash_elem_, struct page, hash_elem);
-
-	// if (page != NULL)
-	// {
 	vm_dealloc_page(page);
-	// }
 }
 
 /* Returns a hash value for page p. */
